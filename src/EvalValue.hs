@@ -139,28 +139,33 @@ getGt e1 e2 = do
     (VChar b1, VChar b2) -> return (b1 > b2)
     _ -> lift Nothing
 
--- getIfAns :: Expr -> Expr -> ContextState Value
-
+getIfAns :: Expr -> Expr -> Expr -> ContextState Value
+getIfAns eif e1 e2 = do
+  evif <- eval eif
+  case (evif) of
+    (VBool True) -> eval e1
+    (VBool False) -> eval e2
+    _ -> lift Nothing
 
 eval :: Expr -> ContextState Value
 eval (EBoolLit b) = return $ VBool b
 eval (EIntLit b) = return $ VInt b
 eval (ECharLit b) = return $ VChar b
 eval (ENot e) = getBool e >>= \b -> return (VBool $ not b)
-eval (EAnd e1 e2) = getAnd e1 e2 >>= \b -> return (VBool $ b)
-eval (EOr e1 e2) = getOr e1 e2 >>= \b -> return (VBool $ b)
-eval (EAdd e1 e2) = getAdd e1 e2 >>= \b -> return (VInt $ b)
-eval (ESub e1 e2) = getSub e1 e2 >>= \b -> return (VInt $ b)
-eval (EMul e1 e2) = getMul e1 e2 >>= \b -> return (VInt $ b)
-eval (EDiv e1 e2) = getDiv e1 e2 >>= \b -> return (VInt $ b)
-eval (EMod e1 e2) = getMod e1 e2 >>= \b -> return (VInt $ b)
-eval (EEq e1 e2) = getEq e1 e2 >>= \b -> return (VBool $ b)
-eval (ENeq e1 e2) = getNeq e1 e2 >>= \b -> return (VBool $ b)
-eval (ELe e1 e2) = getLe e1 e2 >>= \b -> return (VBool $ b)
-eval (ELt e1 e2) = getLt e1 e2 >>= \b -> return (VBool $ b)
-eval (EGe e1 e2) = getGe e1 e2 >>= \b -> return (VBool $ b)
-eval (EGt e1 e2) = getGt e1 e2 >>= \b -> return (VBool $ b)
-eval (EIf eif e1 e2) = undefined
+eval (EAnd e1 e2) = getAnd e1 e2 >>= \b -> return (VBool b)
+eval (EOr e1 e2) = getOr e1 e2 >>= \b -> return (VBool b)
+eval (EAdd e1 e2) = getAdd e1 e2 >>= \b -> return (VInt b)
+eval (ESub e1 e2) = getSub e1 e2 >>= \b -> return (VInt b)
+eval (EMul e1 e2) = getMul e1 e2 >>= \b -> return (VInt b)
+eval (EDiv e1 e2) = getDiv e1 e2 >>= \b -> return (VInt b)
+eval (EMod e1 e2) = getMod e1 e2 >>= \b -> return (VInt b)
+eval (EEq e1 e2) = getEq e1 e2 >>= \b -> return (VBool b)
+eval (ENeq e1 e2) = getNeq e1 e2 >>= \b -> return (VBool b)
+eval (ELe e1 e2) = getLe e1 e2 >>= \b -> return (VBool b)
+eval (ELt e1 e2) = getLt e1 e2 >>= \b -> return (VBool b)
+eval (EGe e1 e2) = getGe e1 e2 >>= \b -> return (VBool b)
+eval (EGt e1 e2) = getGt e1 e2 >>= \b -> return (VBool b)
+eval (EIf eif e1 e2) = getIfAns eif e1 e2
 -- ... more
 eval _ = undefined
 
