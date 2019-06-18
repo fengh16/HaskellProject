@@ -5,9 +5,9 @@ import AST
 import Control.Monad.State
 import qualified Data.Map as Map
 
--- -- for debug!
--- import qualified Debug.Trace as Trace
--- -- end of for debug!
+-- for debug!
+import qualified Debug.Trace as Trace
+-- end of for debug!
 
 data Context = Context {
   -- 可以用某种方式定义上下文，用于记录变量绑定状态
@@ -99,17 +99,17 @@ eval (EIf e1 e2 e3) = isIf3 e1 e2 e3
 
 eval (ELambda (pn, pt) e) = do
   originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nELambda  context: " ++ (show originContext) ++ "\n   pn = " ++ (show pn) ++ "\n && pt = " ++ (show pt) ++ "\n && e = " ++ (show e)) $ return TInt
-  -- -- end of for debug!
+  -- for debug!
+  Trace.trace ("\nELambda  context: " ++ (show originContext) ++ "\n   pn = " ++ (show pn) ++ "\n && pt = " ++ (show pt) ++ "\n && e = " ++ (show e)) $ return TInt
+  -- end of for debug!
   put $ insertIntoContext originContext pn pt
   eType <- eval e
   return $ TArrow pt eType
 eval (ELet (s, es) e) = do
   originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nELet  context: " ++ (show originContext) ++ "\n   s = " ++ (show s) ++ "\n && es = " ++ (show es) ++ "\n && e = " ++ (show e)) $ return TInt
-  -- -- end of for debug!
+  -- for debug!
+  Trace.trace ("\nELet  context: " ++ (show originContext) ++ "\n   s = " ++ (show s) ++ "\n && es = " ++ (show es) ++ "\n && e = " ++ (show e)) $ return TInt
+  -- end of for debug!
   esType <- eval es
   put $ insertIntoContext originContext s esType
   eType <- eval e
@@ -117,31 +117,31 @@ eval (ELet (s, es) e) = do
   return eType
 eval (ELetRec f (x, tx) (e1, ty) e2) = do
   originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nELetRec  context: " ++ (show originContext) ++ "\n   f = " ++ (show f) ++ "\n && x = " ++ (show x) ++ "\n && tx = " ++ (show tx) ++ "\n && e1 = " ++ (show e1) ++ "\n && ty = " ++ (show ty) ++ "\n && e2 = " ++ (show e2)) $ return TInt
-  -- -- end of for debug!
+  -- for debug!
+  Trace.trace ("\nELetRec  context: " ++ (show originContext) ++ "\n   f = " ++ (show f) ++ "\n && x = " ++ (show x) ++ "\n && tx = " ++ (show tx) ++ "\n && e1 = " ++ (show e1) ++ "\n && ty = " ++ (show ty) ++ "\n && e2 = " ++ (show e2)) $ return TInt
+  -- end of for debug!
   put $ insertIntoContext originContext x tx
+  put $ insertIntoContext (insertIntoContext originContext x tx) f (TArrow tx ty)
   checkType e1 ty
-  put $ insertIntoContext originContext f (TArrow tx ty)
   eType <- eval e2
   put originContext  -- 因为let只是临时绑定
   return eType
 eval (EApply e1 e2) = do
   typeE1 <- eval e1
   typeE2 <- eval e2
-  -- -- for debug!
-  -- originContext <- get
-  -- Trace.trace ("\nEApply  context: " ++ (show originContext) ++ "\n   typeE1 = " ++ (show typeE1) ++ "\n && typeE2 = " ++ (show typeE2) ++ "\n && e1 = " ++ (show e1) ++ "\n && e2 = " ++ (show e2)) $ return TInt
-  -- -- end of for debug!
+  -- for debug!
+  originContext <- get
+  Trace.trace ("\nEApply  context: " ++ (show originContext) ++ "\n   typeE1 = " ++ (show typeE1) ++ "\n && typeE2 = " ++ (show typeE2) ++ "\n && e1 = " ++ (show e1) ++ "\n && e2 = " ++ (show e2)) $ return TInt
+  -- end of for debug!
   case typeE1 of
     (TArrow t0 t1) | t0 == typeE2 -> return t1
     _ -> lift Nothing
 
 eval (EVar s) = do
   originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return TInt
-  -- -- end of for debug!
+  -- for debug!
+  Trace.trace ("\nEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return TInt
+  -- end of for debug!
   case (Map.fromList (runContext originContext)) Map.!? s of
     (Just a) -> return a
     _ -> lift Nothing
