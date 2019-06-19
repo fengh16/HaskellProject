@@ -65,12 +65,44 @@ getTwoInt e1 e2 = do
 
 insertIntoContext originContext pn pt = Context $ Map.toList $ Map.insert pn pt (Map.fromList $ runContext originContext)
 
+doApply :: Expr -> Expr -> ContextState Expr
+doApply e e1 = do
+  originContext <- get
+  -- for debug!
+  Trace.trace ("\ndoEApply  context: " ++ (show originContext) ++ "\n   e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
+  -- end of for debug!
+  func <- checkEVarELambda e
+  case func of
+    (ELambda (x, t) e2) -> do
+      parsedE1 <- simplifyExpr e1
+      put $ insertIntoContext originContext x parsedE1
+      -- for debug!
+      t <- get
+      Trace.trace ("\ndoEApply2  context: " ++ (show t) ++ "\n   func = " ++ (show func) ++ "\n && e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
+      -- end of for debug!
+      ans <- simplifyExpr e2
+      return ans
+    _ -> lift Nothing
+
 checkEVarELambda :: Expr -> ContextState Expr
 checkEVarELambda (EVar s) = do
   originContext <- get
+  -- for debug!
+  Trace.trace ("\ngetEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return (VBool False)
+  -- end of for debug!
   case (Map.fromList (runContext originContext)) Map.!? s of
-    (Just a@(ELambda _ _)) -> return a
+    (Just a) -> checkEVarELambda a
     _ -> lift Nothing
+checkEVarELambda (EApply m e) = do
+  originContext <- get
+  func <- checkEVarELambda m
+  case func of
+    (ELambda (pn, pt) e) -> do
+      put $ Context $ Map.toList $ Map.delete pn (Map.fromList (runContext originContext))
+    _ -> lift Nothing
+  ans <- doApply m e
+  put originContext
+  return ans
 checkEVarELambda e@(ELambda _ _) = do
   return e
 checkEVarELambda _ = do
@@ -81,89 +113,174 @@ parseVar (EVar s) = do
   originContext <- get
   case (Map.fromList (runContext originContext)) Map.!? s of
     (Just a) -> return a
-    _ -> lift Nothing
+    _ -> return (EVar s)
 parseVar _ = do
   lift Nothing
-  
-parseVars :: Expr -> ContextState Expr
-parseVars a@(EVar e) = do
+
+checkBase a =
+  case a of
+    (EBoolLit _) -> True
+    (EIntLit _) -> True
+    (ECharLit _) -> True
+    _ -> False
+
+simplifyExpr :: Expr -> ContextState Expr
+simplifyExpr a@(EVar e) = do
   parseVar a
-parseVars (ENot e) = do
-  ans <- parseVars e
-  return (ENot ans)
-parseVars (EAnd e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EAnd ans1 ans2)
-parseVars (EOr e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EOr ans1 ans2)
-parseVars (EAdd e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EAdd ans1 ans2)
-parseVars (ESub e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (ESub ans1 ans2)
-parseVars (EMul e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EMul ans1 ans2)
-parseVars (EDiv e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EDiv ans1 ans2)
-parseVars (EMod e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EMod ans1 ans2)
-parseVars (EEq e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EEq ans1 ans2)
-parseVars (ENeq e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (ENeq ans1 ans2)
-parseVars (ELt e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (ELt ans1 ans2)
-parseVars (EGt e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EGt ans1 ans2)
-parseVars (ELe e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (ELe ans1 ans2)
-parseVars (EGe e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EGe ans1 ans2)
--- parseVars (EIf eif e1 e2) = do
---   ans1 <- parseVars e1
---   ans2 <- parseVars e2
---   return (EIf eif ans1 ans2)
--- parseVars (ELambda (pn, pt) e) = do
---   ans <- parseVars e
---   return (ELambda (pn, pt) ans)
--- parseVars (ELet (n, e1) e2) = do
---   ans1 <- parseVars e1
---   ans2 <- parseVars e2
---   return (ELet (n, ans1) ans2)
--- parseVars (ELetRec f (x, tx) (e1, ty) e2) = do
---   ans1 <- parseVars e1
---   ans2 <- parseVars e2
+simplifyExpr (ENot e) = do
+  ans <- simplifyExpr e
+  if checkBase ans
+    then do
+      a <- eval (ENot ans)
+      valueToExpr a
+    else return (ENot ans)
+simplifyExpr (EAnd e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EAnd ans1 ans2)
+      valueToExpr a
+    else return (EAnd ans1 ans2)
+simplifyExpr (EOr e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EOr ans1 ans2)
+      valueToExpr a
+    else return (EOr ans1 ans2)
+simplifyExpr (EAdd e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EAdd ans1 ans2)
+      valueToExpr a
+    else return (EAdd ans1 ans2)
+simplifyExpr (ESub e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (ESub ans1 ans2)
+      valueToExpr a
+    else return (ESub ans1 ans2)
+simplifyExpr (EMul e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EMul ans1 ans2)
+      valueToExpr a
+    else return (EMul ans1 ans2)
+simplifyExpr (EDiv e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EDiv ans1 ans2)
+      valueToExpr a
+    else return (EDiv ans1 ans2)
+simplifyExpr (EMod e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EMod ans1 ans2)
+      valueToExpr a
+    else return (EMod ans1 ans2)
+simplifyExpr (EEq e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EEq ans1 ans2)
+      valueToExpr a
+    else return (EEq ans1 ans2)
+simplifyExpr (ENeq e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (ENeq ans1 ans2)
+      valueToExpr a
+    else return (ENeq ans1 ans2)
+simplifyExpr (ELt e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (ELt ans1 ans2)
+      valueToExpr a
+    else return (ELt ans1 ans2)
+simplifyExpr (EGt e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EGt ans1 ans2)
+      valueToExpr a
+    else return (EGt ans1 ans2)
+simplifyExpr (ELe e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (ELe ans1 ans2)
+      valueToExpr a
+    else return (ELe ans1 ans2)
+simplifyExpr (EGe e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EGe ans1 ans2)
+      valueToExpr a
+    else return (EGe ans1 ans2)
+simplifyExpr (EIf eif e1 e2) = do
+  ansif <- simplifyExpr eif
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ansif && checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (EIf ansif ans1 ans2)
+      valueToExpr a
+    else return (EIf ansif ans1 ans2)
+simplifyExpr (ELambda (pn, pt) e) = do
+  originContext <- get
+  put $ Context $ Map.toList $ Map.delete pn (Map.fromList (runContext originContext))
+  ans <- simplifyExpr e
+  put originContext
+  return (ELambda (pn, pt) ans)
+simplifyExpr (ELet (n, e1) e2) = do
+  originContext <- get
+  put $ Context $ Map.toList $ Map.delete n (Map.fromList (runContext originContext))
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (ELet (n, ans1) ans2)
+      put originContext
+      valueToExpr a
+    else do
+      put originContext
+      return (ELet (n, ans1) ans2)
+-- simplifyExpr (ELetRec f (x, tx) (e1, ty) e2) = do
+--   ans1 <- simplifyExpr e1
+--   ans2 <- simplifyExpr e2
 --   return (ELetRec f (x, tx) (ans1, ty) ans2)
-parseVars (EApply e1 e2) = do
-  ans1 <- parseVars e1
-  ans2 <- parseVars e2
-  return (EApply ans1 ans2)
-parseVars a = do
+-- simplifyExpr (EApply e1 e2) = do
+--   ans1 <- simplifyExpr e1
+--   ans2 <- simplifyExpr e2
+--   return (EApply ans1 ans2)
+simplifyExpr a = do
   return a
+
+valueToExpr :: Value -> ContextState Expr
+valueToExpr (VBool b) = return $ EBoolLit b
+valueToExpr (VInt b) = return $ EIntLit b
+valueToExpr (VChar b) = return $ ECharLit b
 
 eval :: Expr -> ContextState Value
 eval (EBoolLit b) = return $ VBool b
@@ -216,7 +333,7 @@ eval (ELet (s, es) e) = do
   -- for debug!
   Trace.trace ("\nELet  context: " ++ (show originContext) ++ "\n   s = " ++ (show s) ++ "\n && es = " ++ (show es) ++ "\n && e = " ++ (show e)) $ return (VBool False)
   -- end of for debug!
-  parsedES <- parseVars es
+  parsedES <- simplifyExpr es
   put $ insertIntoContext originContext s parsedES
   -- for debug!
   k <- get
@@ -230,7 +347,7 @@ eval (ELetRec f (x, tx) (e1, ty) e2) = do
   -- for debug!
   Trace.trace ("\nELetRec  context: " ++ (show originContext) ++ "\n   f = " ++ (show f) ++ "\n && x = " ++ (show x) ++ "\n && tx = " ++ (show tx) ++ "\n && e1 = " ++ (show e1) ++ "\n && ty = " ++ (show ty) ++ "\n && e2 = " ++ (show e2)) $ return (VBool False)
   -- end of for debug!
-  parsedE1 <- parseVars e1
+  parsedE1 <- simplifyExpr e1
   put $ insertIntoContext originContext f (ELambda (x, tx) parsedE1)
   eVal <- eval e2
   put originContext  -- 因为let只是临时绑定
@@ -243,10 +360,11 @@ eval (EApply e e1) = do
   func <- checkEVarELambda e
   case func of
     (ELambda (x, t) e2) -> do
-      parsedE1 <- parseVars e1
+      evaledE1 <- eval e1
+      parsedE1 <- valueToExpr evaledE1
       put $ insertIntoContext originContext x parsedE1
       ans <- eval e2
-      put originContext
+      put originContext  -- 因为let只是临时绑定
       return ans
     _ -> lift Nothing
 

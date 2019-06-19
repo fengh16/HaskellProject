@@ -604,9 +604,9 @@ tRaw_09_apply_type = Just TInt
 -- test_simple_21_ELetRec_0_type_bad_2 = assertEqual (tRaw_l21_ELetRec_0_bad_2_type) (EvalType.evalType tRaw_l21_ELetRec_0_bad_2)
 
 
-test_complex_00_aplusb_value = assertEqual (tRaw_00_aplusb_value) (EvalValue.evalValue tRaw_00_aplusb)
+-- test_complex_00_aplusb_value = assertEqual (tRaw_00_aplusb_value) (EvalValue.evalValue tRaw_00_aplusb)
 -- test_complex_00_aplusb_type = assertEqual (tRaw_00_aplusb_type) (EvalType.evalType tRaw_00_aplusb)
--- test_complex_01_lcm_value = assertEqual (tRaw_01_lcm_value) (EvalValue.evalValue tRaw_01_lcm)
+test_complex_01_lcm_value = assertEqual (tRaw_01_lcm_value) (EvalValue.evalValue tRaw_01_lcm)
 -- test_complex_01_lcm_type = assertEqual (tRaw_01_lcm_type) (EvalType.evalType tRaw_01_lcm)
 -- test_complex_02_church0_value = assertEqual (tRaw_02_church0_value) (EvalValue.evalValue tRaw_02_church0)
 -- test_complex_02_church0_type = assertEqual (tRaw_02_church0_type) (EvalType.evalType tRaw_02_church0)
