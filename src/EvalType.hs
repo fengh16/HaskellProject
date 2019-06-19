@@ -146,7 +146,8 @@ eval (EVar s) = do
     (Just a) -> return a
     _ -> lift Nothing
 
-eval _ = undefined
+eval _ = do
+  lift Nothing
 
 
 evalType :: Program -> Maybe Type
