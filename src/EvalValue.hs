@@ -301,12 +301,20 @@ eval (ECharLit b) = return $ VChar b
 eval (ENot e) = getBool e >>= \b -> return (VBool $ not b)
 eval (EAnd e1 e2) = do
   b1 <- getBool e1
-  b2 <- getBool e2
-  return (VBool (b1 && b2))
+  if b1 == False
+    then do
+      return (VBool False) 
+    else do
+      b2 <- getBool e2
+      return (VBool (b1 && b2))
 eval (EOr e1 e2) = do
   b1 <- getBool e1
-  b2 <- getBool e2
-  return (VBool (b1 || b2))
+  if b1 == True 
+    then do 
+      return (VBool True) 
+    else do
+      b2 <- getBool e2
+      return (VBool (b1 || b2))
 
 eval (EAdd e1 e2) = getTwoInt e1 e2 >>= \(ev1, ev2) -> return (VInt (ev1 + ev2))
 eval (ESub e1 e2) = getTwoInt e1 e2 >>= \(ev1, ev2) -> return (VInt (ev1 - ev2))
