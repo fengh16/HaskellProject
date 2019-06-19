@@ -74,22 +74,24 @@ doApply e e1 = do
   func <- checkEVarELambda e
   case func of
     (ELambda (x, t) e2) -> do
+      put $ Context $ Map.toList $ Map.delete x (Map.fromList (runContext originContext))
       parsedE1 <- simplifyExpr e1
       put $ insertIntoContext originContext x parsedE1
       -- for debug!
       t <- get
-      Trace.trace ("\ndoEApply2  context: " ++ (show t) ++ "\n   func = " ++ (show func) ++ "\n && e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
+      Trace.trace ("\ndoEApply2  context: " ++ (show t) ++ "\n") $ return (VBool False)
       -- end of for debug!
       ans <- simplifyExpr e2
+      put originContext
       return ans
     _ -> lift Nothing
 
 checkEVarELambda :: Expr -> ContextState Expr
 checkEVarELambda (EVar s) = do
   originContext <- get
-  -- for debug!
-  Trace.trace ("\ngetEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- Trace.trace ("\ngetEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return (VBool False)
+  -- -- end of for debug!
   case (Map.fromList (runContext originContext)) Map.!? s of
     (Just a) -> checkEVarELambda a
     _ -> lift Nothing
@@ -266,14 +268,23 @@ simplifyExpr (ELet (n, e1) e2) = do
     else do
       put originContext
       return (ELet (n, ans1) ans2)
--- simplifyExpr (ELetRec f (x, tx) (e1, ty) e2) = do
---   ans1 <- simplifyExpr e1
---   ans2 <- simplifyExpr e2
---   return (ELetRec f (x, tx) (ans1, ty) ans2)
--- simplifyExpr (EApply e1 e2) = do
---   ans1 <- simplifyExpr e1
---   ans2 <- simplifyExpr e2
---   return (EApply ans1 ans2)
+simplifyExpr (ELetRec f (x, tx) (e1, ty) e2) = do
+  originContext <- get
+  put $ Context $ Map.toList $ Map.delete x $ Map.delete f (Map.fromList (runContext originContext))
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  if checkBase ans1 && checkBase ans2
+    then do
+      a <- eval (ELetRec f (x, tx) (ans1, ty) ans2)
+      put originContext
+      valueToExpr a
+    else do
+      put originContext
+      return (ELetRec f (x, tx) (ans1, ty) ans2)
+simplifyExpr (EApply e1 e2) = do
+  ans1 <- simplifyExpr e1
+  ans2 <- simplifyExpr e2
+  return (EApply ans1 ans2)
 simplifyExpr a = do
   return a
 
