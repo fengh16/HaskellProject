@@ -5,9 +5,9 @@ import AST
 import Control.Monad.State
 import qualified Data.Map as Map
 
--- for debug!
-import qualified Debug.Trace as Trace
--- end of for debug!
+-- -- for debug!
+-- import qualified Debug.Trace as Trace
+-- -- end of for debug!
 
 data Value
   = VBool Bool
@@ -68,20 +68,24 @@ insertIntoContext originContext pn pt = Context $ Map.toList $ Map.insert pn pt 
 doApply :: Expr -> Expr -> ContextState Expr
 doApply e e1 = do
   originContext <- get
-  -- for debug!
-  Trace.trace ("\ndoEApply  context: " ++ (show originContext) ++ "\n   e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- Trace.trace ("\ndoEApply  context: " ++ (show originContext) ++ "\n   e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
+  -- -- end of for debug!
   func <- checkEVarELambda e
   case func of
     (ELambda (x, t) e2) -> do
       put $ Context $ Map.toList $ Map.delete x (Map.fromList (runContext originContext))
       parsedE1 <- simplifyExpr e1
       put $ insertIntoContext originContext x parsedE1
-      -- for debug!
-      t <- get
-      Trace.trace ("\ndoEApply2  context: " ++ (show t) ++ "\n") $ return (VBool False)
-      -- end of for debug!
-      ans <- simplifyExpr e2
+      -- -- for debug!
+      -- t <- get
+      -- Trace.trace ("\ndoEApply2  context: " ++ (show t) ++ "\n") $ return (VBool False)
+      -- -- end of for debug!
+      ans <- case e2 of
+        (ELambda _ _) -> do
+          simplifyExpr e2
+        _ -> do
+          checkEVarELambda e2
       put originContext
       return ans
     _ -> lift Nothing
@@ -334,9 +338,9 @@ eval (EGe e1 e2) = getTwoIC e1 e2 >>= \cmp -> return (VBool (cmp == EQ || cmp ==
 eval (EGt e1 e2) = getTwoIC e1 e2 >>= \cmp -> return (VBool (cmp == GT))
 
 eval (EIf eif e1 e2) = do
-  -- for debug!
-  Trace.trace ("\nEIf\n   eif = " ++ (show eif) ++ "\n && e1 = " ++ (show e1) ++ "\n && e2 = " ++ (show e2)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- Trace.trace ("\nEIf\n   eif = " ++ (show eif) ++ "\n && e1 = " ++ (show e1) ++ "\n && e2 = " ++ (show e2)) $ return (VBool False)
+  -- -- end of for debug!
   evif <- eval eif
   case evif of
     (VBool True) -> do
@@ -349,23 +353,23 @@ eval (EIf eif e1 e2) = do
 
 eval (ELet (s, es) e) = do
   originContext <- get
-  -- for debug!
-  Trace.trace ("\nELet  context: " ++ (show originContext) ++ "\n   s = " ++ (show s) ++ "\n && es = " ++ (show es) ++ "\n && e = " ++ (show e)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- Trace.trace ("\nELet  context: " ++ (show originContext) ++ "\n   s = " ++ (show s) ++ "\n && es = " ++ (show es) ++ "\n && e = " ++ (show e)) $ return (VBool False)
+  -- -- end of for debug!
   parsedES <- simplifyExpr es
   put $ insertIntoContext originContext s parsedES
-  -- for debug!
-  k <- get
-  Trace.trace ("\nELet  nowcontext: " ++ (show k)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- k <- get
+  -- Trace.trace ("\nELet  nowcontext: " ++ (show k)) $ return (VBool False)
+  -- -- end of for debug!
   eVal <- eval e
   put originContext  -- 因为let只是临时绑定
   return eVal
 eval (ELetRec f (x, tx) (e1, ty) e2) = do
   originContext <- get
-  -- for debug!
-  Trace.trace ("\nELetRec  context: " ++ (show originContext) ++ "\n   f = " ++ (show f) ++ "\n && x = " ++ (show x) ++ "\n && tx = " ++ (show tx) ++ "\n && e1 = " ++ (show e1) ++ "\n && ty = " ++ (show ty) ++ "\n && e2 = " ++ (show e2)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- Trace.trace ("\nELetRec  context: " ++ (show originContext) ++ "\n   f = " ++ (show f) ++ "\n && x = " ++ (show x) ++ "\n && tx = " ++ (show tx) ++ "\n && e1 = " ++ (show e1) ++ "\n && ty = " ++ (show ty) ++ "\n && e2 = " ++ (show e2)) $ return (VBool False)
+  -- -- end of for debug!
   parsedE1 <- simplifyExpr e1
   put $ insertIntoContext originContext f (ELambda (x, tx) parsedE1)
   eVal <- eval e2
@@ -373,9 +377,9 @@ eval (ELetRec f (x, tx) (e1, ty) e2) = do
   return eVal
 eval (EApply e e1) = do
   originContext <- get
-  -- for debug!
-  Trace.trace ("\nEApply  context: " ++ (show originContext) ++ "\n   e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- Trace.trace ("\nEApply  context: " ++ (show originContext) ++ "\n   e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
+  -- -- end of for debug!
   func <- checkEVarELambda e
   case func of
     (ELambda (x, t) e2) -> do
@@ -389,9 +393,9 @@ eval (EApply e e1) = do
 
 eval (EVar s) = do
   originContext <- get
-  -- for debug!
-  Trace.trace ("\nEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return (VBool False)
-  -- end of for debug!
+  -- -- for debug!
+  -- Trace.trace ("\nEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return (VBool False)
+  -- -- end of for debug!
   case (Map.fromList (runContext originContext)) Map.!? s of
     (Just a) -> eval a
     _ -> lift Nothing
