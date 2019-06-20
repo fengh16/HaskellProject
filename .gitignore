@@ -2,3 +2,5 @@
 fpproject.cabal
 .HTF
 *~
+.vscode/
+*DS_Store
