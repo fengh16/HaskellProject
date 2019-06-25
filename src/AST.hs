@@ -23,6 +23,7 @@ data Type
   | TArrow Type Type
   -- ^箭头类型，这是函数具有的类型。在 @TArrow t1 t2@ 构成的函数类型里，@t1@ 表示函数的参数类型，@t2@ 表示函数的返回值类型。
 
+
   | TData String
   -- ^代数数据类型。@TData adtName@ 中的 @adtName@ 是该类型的名称。
 
@@ -193,7 +194,7 @@ data Expr
   -- 该表达式的类型为 @e1@ 的类型，值为第一个匹配上的模式对应的表达式的值。
   --
   -- 如果你要实现的语言不支持模式匹配，就不用管这个构造函数。
-
+  | EData String [Expr]
   deriving (Show, Eq)
 
 
