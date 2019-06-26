@@ -2,9 +2,6 @@ module Translator where
 
 import AST
 
-
-
-
 eval :: Expr -> IO()
 eval (EBoolLit b) = 
     case b of
@@ -79,27 +76,25 @@ eval (EGt e1 e2) = do
     eval e2
 
 eval (EIf eif e1 e2) = do
-    putStr "("
     eval eif
     putStr "?"
     eval e1
     putStr ":"
     eval e2
-    putStr ")"
+    
 
 eval (ELambda (pn, pt) e) = do
-    putStr "("
     putStr $ id pn
-    putStr ")=>("
+    putStr "=>("
     eval e
     putStr ")"
 
 eval (ELet (s, es) e) = do
-    putStr "(("
+    putStr "("
     putStr $ id s
-    putStr ")=>("
+    putStr "=>"
     eval e
-    putStr "))("
+    putStr ")("
     eval es
     putStr ")"
 
@@ -107,18 +102,16 @@ eval (ELetRec f (x, tx) (e1, ty) e2) = do
     putStr "var "
     putStr $ id f
     putStr "="
-    putStr "("
     putStr $ id x
-    putStr ")=>("
+    putStr "=>("
     eval e1
     putStr ");"
     eval e2
 
 
 eval (EApply e e1) = do
-    putStr "("
     eval e
-    putStr ")("
+    putStr "("
     eval e1
     putStr ")"
 
