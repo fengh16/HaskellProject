@@ -13,8 +13,8 @@ data Context = Context {
   -- 可以用某种方式定义上下文，用于记录变量绑定状态
   runContext :: [(String, Type)],
   eDataTypeMap :: [(String, Type)],
-  adtsMap :: [(String, [Type])],  -- ADT所需的参数类型数组
-  adtsTypeMap :: [(String, Type)]  -- ADT的类型
+  adtsMap :: [(String, [Type])],
+  adtsTypeMap :: [(String, Type)]
 } deriving (Show, Eq)
 
 type ContextState a = StateT Context Maybe a
@@ -74,9 +74,104 @@ checkType e1 ty = do
   tGot <- eval e1
   if tGot == ty then return () else lift Nothing
 
+pData2Var :: Pattern -> Type -> ContextState [(String,Type)]
+pData2Var (PData cons ps) t = do
+  originContext <- get
+  case (Map.fromList (adtsMap originContext) Map.!? cons) of
+    Just ts -> patterns2Var ps ts
+
+patterns2Var :: [Pattern] -> [Type] -> ContextState [(String,Type)]
+patterns2Var [] [] = return []
+patterns2Var (p:ps) (t:ts) = do
+  vP <- pattern2Var p t
+  vPs <- patterns2Var ps ts
+  return (vP ++ vPs)
+
+pattern2Var :: Pattern -> Type -> ContextState [(String,Type)]
+pattern2Var p t = do
+  case p of
+    PVar vName -> return [(vName,t)] 
+    PData cons ps -> pData2Var p t
+    _ -> return []
+
+patternExpr2Type :: Pattern -> Type -> Expr -> ContextState Type
+patternExpr2Type p pt expr = do
+  vars <- pattern2Var p pt
+  localVars vars (eval expr)
+
+patternExprTypes :: [(Pattern,Expr)] -> Type -> ContextState Type
+patternExprTypes ((p,expr):[]) pt = do
+  t <- patternExpr2Type p pt expr
+  return t
+patternExprTypes ((p,expr):pes) pt = do
+  t1 <- patternExpr2Type p pt expr
+  t2 <- patternExprTypes pes pt
+  if t1 == t2 
+    then return t1
+    else lift Nothing 
+
+localVars :: [(String,Type)] -> ContextState Type -> ContextState Type
+localVars [] op = op
+localVars ((vName,vt):vs) op = do
+  originContext <- get
+  put $ insertIntoContext originContext vName vt
+  result <- localVars vs op
+  put originContext
+  return result
+
+pDataType :: Pattern -> ContextState Type
+pDataType (PData s ps) = do
+  originContext <- get
+  case (Map.fromList (adtsMap originContext) Map.!? s) of
+    Just ts -> patternsType ps ts >> case (Map.fromList (eDataTypeMap originContext) Map.!? s) of
+      Just t -> return t
+      Nothing -> lift Nothing
+    Nothing -> lift Nothing
+
+patternType :: Pattern -> Type -> ContextState Type
+patternType p t = do
+  case p of
+    PBoolLit b -> 
+      if t == TBool then return TBool else lift Nothing
+    PIntLit i -> 
+      if t == TInt then return TInt else lift Nothing
+    PCharLit c -> 
+      if t == TChar then return TChar else lift Nothing
+    PVar s -> do
+      originContext <- get
+      case (Map.fromList (runContext originContext) Map.!? s) of
+        Just et -> return et
+        Nothing -> return t
+    PData cons ps -> do
+      originContext <- get
+      case (Map.fromList (eDataTypeMap originContext) Map.!? cons) of
+        Nothing -> lift Nothing
+        Just dt -> 
+          if dt == t then pDataType (PData cons ps) else lift Nothing
+
+patternsType :: [Pattern] -> [Type] -> ContextState Type
+patternsType [] [] = return TBool
+patternsType (p:ps) (t:ts) = do 
+  pType <- (patternType p t)
+  psType <- (patternsType ps ts)
+  return psType
+
+eDataTypes :: [Expr] -> [Type] -> ContextState [Type]
+eDataTypes [] [] = return []
+eDataTypes (e:es) (t:ts) = do
+  et <- eDataType e t
+  ests <- eDataTypes es ts
+  return (et : ests)
+
+eDataType :: Expr -> Type -> ContextState Type
+eDataType e t = do
+  et <- eval e
+  if et == t then return et else lift Nothing
+
+getAdts (ADT name ax) = ax
+getAdtsMap = foldl (\acc x -> (getAdts x) ++ acc) []
+
 insertIntoContext originContext pn pt = (Context  (Map.toList $ Map.insert pn pt (Map.fromList $ runContext originContext)) (eDataTypeMap originContext) (adtsMap originContext) (adtsTypeMap originContext))
-
-
 
 eval :: Expr -> ContextState Type
 eval (EBoolLit _) = return TBool
@@ -158,8 +253,8 @@ eval (EVar s) = do
 
 eval (ECase e ps) = do
   et <- eval e
-  checkPatternsType (fst $ unzip ps) (replicate (length ps) et)
-  rt <- checkPatternExprTypes ps et
+  patternsType (fst $ unzip ps) (replicate (length ps) et)
+  rt <- patternExprTypes ps et
   return rt
 
 eval (EData cons es) = do
@@ -170,7 +265,7 @@ eval (EData cons es) = do
         Just ts -> 
           if (length es) == (length ts)
             then do
-              checkEDataTypes es ts
+              eDataTypes es ts
               return $ cont
             else lift Nothing
         Nothing -> lift Nothing
@@ -178,118 +273,6 @@ eval (EData cons es) = do
 
 -- eval _ = do
 --   lift Nothing
-
-
-pData2Var :: Pattern -> Type -> ContextState [(String,Type)]
-pData2Var (PData cons ps) t = do
-  originContext <- get
-  case (Map.fromList (adtsMap originContext) Map.!? cons) of
-    Just ts -> patterns2Var ps ts
-
-patterns2Var :: [Pattern] -> [Type] -> ContextState [(String,Type)]
-patterns2Var [] [] = return []
-patterns2Var (p:ps) (t:ts) = do
-  vP <- pattern2Var p t
-  vPs <- patterns2Var ps ts
-  return (vP ++ vPs)
-
-pattern2Var :: Pattern -> Type -> ContextState [(String,Type)]
-pattern2Var p t = do
-  case p of
-    PVar vName -> return [(vName,t)] 
-    PData cons ps -> pData2Var p t
-    _ -> return []
-
-patternExpr2Type :: Pattern -> Type -> Expr -> ContextState Type
-patternExpr2Type p pt expr = do
-  vars <- pattern2Var p pt
-  localVars vars (eval expr)
-
-checkPatternExprTypes :: [(Pattern,Expr)] -> Type -> ContextState Type
-checkPatternExprTypes ((p,expr):[]) pt = do
-  t <- patternExpr2Type p pt expr
-  return t
-checkPatternExprTypes ((p,expr):pes) pt = do
-  t1 <- patternExpr2Type p pt expr
-  t2 <- checkPatternExprTypes pes pt
-  if t1 == t2 
-    then return t1
-    else lift Nothing 
-
-localVars :: [(String,Type)] -> ContextState Type -> ContextState Type
-localVars [] op = op
-localVars ((vName,vt):vs) op = do
-  -- pust
-  originContext <- get
-  put $ insertIntoContext originContext vName vt
-  -- operation
-  result <- localVars vs op
-  -- pop
-  put originContext
-  return result
-
--- 检查ADT模式和构造函数类型
-checkPDataType :: Pattern -> ContextState Type
-checkPDataType (PData s ps) = do
-  originContext <- get
-  case (Map.fromList (adtsMap originContext) Map.!? s) of
-    Just ts -> checkPatternsType ps ts >> case (Map.fromList (eDataTypeMap originContext) Map.!? s) of
-      Just t -> return t
-      Nothing -> lift Nothing
-    Nothing -> lift Nothing
-
--- single
-checkPatternType :: Pattern -> Type -> ContextState Type
-checkPatternType p t = do
-  case p of
-    PBoolLit b -> 
-      if t == TBool then return TBool else lift Nothing
-    PIntLit i -> 
-      if t == TInt then return TInt else lift Nothing
-    PCharLit c -> 
-      if t == TChar then return TChar else lift Nothing
-    PVar s -> do
-      originContext <- get
-      case (Map.fromList (runContext originContext) Map.!? s) of
-        Just et -> return et
-        Nothing -> return t
-    PData cons ps -> do
-      originContext <- get
-      case (Map.fromList (eDataTypeMap originContext) Map.!? cons) of
-        Nothing -> lift Nothing
-        Just dt -> 
-          if dt == t then checkPDataType (PData cons ps) else lift Nothing
-
--- many
-checkPatternsType :: [Pattern] -> [Type] -> ContextState Type
-checkPatternsType [] [] = return TBool
-checkPatternsType (p:ps) (t:ts) = do 
-  pType <- (checkPatternType p t)
-  psType <- (checkPatternsType ps ts)
-  return psType
-
-
-
-checkEDataTypes :: [Expr] -> [Type] -> ContextState [Type]
-checkEDataTypes [] [] = return []
-checkEDataTypes (e:es) (t:ts) = do
-  et <- checkEDataType e t
-  ests <- checkEDataTypes es ts
-  return (et : ests)
-
-checkEDataType :: Expr -> Type -> ContextState Type
-checkEDataType e t = do
-  et <- eval e
-  if et == t then return et else lift Nothing
-
-
-evalType :: Program -> Maybe Type
-evalType (Program adts body) = evalStateT (eval body) $
-  (Context []  (geteDataTypeMap adts) (getAdtsMap adts) (getAdtsTypeMap adts)) -- 可以用某种方式定义上下文，用于记录变量绑定状态
-
-
-getAdts (ADT name ax) = ax
-getAdtsMap = foldl (\acc x -> (getAdts x) ++ acc) []
 
 getConsFuncType tname [] = TData tname
 getConsFuncType tname (t:ts) = TArrow t (getConsFuncType tname ts)
@@ -300,3 +283,7 @@ getAdtsTypeMap (adt:adts) = (getAdtsType adt) ++ (getAdtsTypeMap adts)
 
 geteDataType (ADT n ax) = foldl (\acc x -> (x, TData n) : acc) [] (fst $ unzip ax)
 geteDataTypeMap = foldl (\acc x -> (geteDataType x) ++ acc) []
+
+evalType :: Program -> Maybe Type
+evalType (Program adts body) = evalStateT (eval body) $
+  (Context []  (geteDataTypeMap adts) (getAdtsMap adts) (getAdtsTypeMap adts)) -- 可以用某种方式定义上下文，用于记录变量绑定状态

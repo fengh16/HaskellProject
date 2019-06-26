@@ -13,12 +13,16 @@ data Value
   = VBool Bool
   | VInt Int
   | VChar Char
+  | VExpr Expr [(String, Value)]
+  | VData String [Value]
   -- ... more
   deriving (Show, Eq)
 
 data Context = Context {
   -- 可以用某种方式定义上下文，用于记录变量绑定状态
-  runContext :: [(String, Expr)]
+  runContext :: [(String, Value)],
+  mv :: Maybe Value,
+  adtsMap :: [(String, Expr)]
 } deriving (Show, Eq)
 
 type ContextState a = StateT Context Maybe a
@@ -63,7 +67,8 @@ getTwoInt e1 e2 = do
     (VInt b1, VInt b2) -> return (b1, b2)
     _ -> lift Nothing
 
-insertIntoContext originContext pn pt = Context $ Map.toList $ Map.insert pn pt (Map.fromList $ runContext originContext)
+insertIntoContext originContext pn pt = (Context (Map.toList $ Map.insert pn pt (Map.fromList $ runContext originContext)) (mv originContext) (adtsMap originContext))
+insertIntoContext2 originContext v = (Context (runContext originContext) (Just v) ((adtsMap originContext)))
 
 doApply :: Expr -> Expr -> ContextState Expr
 doApply e e1 = do
@@ -74,9 +79,10 @@ doApply e e1 = do
   func <- checkEVarELambda e
   case func of
     (ELambda (x, t) e2) -> do
-      put $ Context $ Map.toList $ Map.delete x (Map.fromList (runContext originContext))
+      -- put $ Context $ Map.toList $ Map.delete x (Map.fromList (runContext originContext))
       parsedE1 <- simplifyExpr e1
-      put $ insertIntoContext originContext x parsedE1
+      vparsedE1 <- eval parsedE1
+      put $ insertIntoContext originContext x vparsedE1
       -- -- for debug!
       -- t <- get
       -- Trace.trace ("\ndoEApply2  context: " ++ (show t) ++ "\n") $ return (VBool False)
@@ -97,14 +103,15 @@ checkEVarELambda (EVar s) = do
   -- Trace.trace ("\ngetEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return (VBool False)
   -- -- end of for debug!
   case (Map.fromList (runContext originContext)) Map.!? s of
-    (Just a) -> checkEVarELambda a
+    (Just a) -> checkEVarELambda (value2Expr a)
     _ -> lift Nothing
 checkEVarELambda (EApply m e) = do
   originContext <- get
   func <- checkEVarELambda m
   case func of
     (ELambda (pn, pt) e) -> do
-      put $ Context $ Map.toList $ Map.delete pn (Map.fromList (runContext originContext))
+      -- put $ Context $ Map.toList $ Map.delete pn (Map.fromList (runContext originContext))
+      lift Nothing
     _ -> lift Nothing
   ans <- doApply m e
   put originContext
@@ -118,7 +125,7 @@ parseVar :: Expr -> ContextState Expr
 parseVar (EVar s) = do
   originContext <- get
   case (Map.fromList (runContext originContext)) Map.!? s of
-    (Just a) -> return a
+    (Just a) -> return (value2Expr a)
     _ -> return (EVar s)
 parseVar _ = do
   lift Nothing
@@ -255,13 +262,13 @@ simplifyExpr (EIf eif e1 e2) = do
     else return (EIf ansif ans1 ans2)
 simplifyExpr (ELambda (pn, pt) e) = do
   originContext <- get
-  put $ Context $ Map.toList $ Map.delete pn (Map.fromList (runContext originContext))
+  -- put $ Context $ Map.toList $ Map.delete pn (Map.fromList (runContext originContext))
   ans <- simplifyExpr e
   put originContext
   return (ELambda (pn, pt) ans)
 simplifyExpr (ELet (n, e1) e2) = do
   originContext <- get
-  put $ Context $ Map.toList $ Map.delete n (Map.fromList (runContext originContext))
+  -- put $ Context $ Map.toList $ Map.delete n (Map.fromList (runContext originContext))
   ans1 <- simplifyExpr e1
   ans2 <- simplifyExpr e2
   if checkBase ans1 && checkBase ans2
@@ -274,7 +281,7 @@ simplifyExpr (ELet (n, e1) e2) = do
       return (ELet (n, ans1) ans2)
 simplifyExpr (ELetRec f (x, tx) (e1, ty) e2) = do
   originContext <- get
-  put $ Context $ Map.toList $ Map.delete x $ Map.delete f (Map.fromList (runContext originContext))
+  -- put $ Context $ Map.toList $ Map.delete x $ Map.delete f (Map.fromList (runContext originContext))
   ans1 <- simplifyExpr e1
   ans2 <- simplifyExpr e2
   if checkBase ans1 && checkBase ans2
@@ -292,10 +299,84 @@ simplifyExpr (EApply e1 e2) = do
 simplifyExpr a = do
   return a
 
+value2Expr :: Value -> Expr
+value2Expr (VBool b) = EBoolLit b
+value2Expr (VInt b) = EIntLit b
+value2Expr (VChar b) = ECharLit b
+value2Expr (VData b vs) = EData b (values2Exprs vs)
+
+values2Exprs :: [Value] -> [Expr]
+values2Exprs [] = []
+values2Exprs (v:vs) = (value2Expr v) : (values2Exprs vs)
+
 valueToExpr :: Value -> ContextState Expr
 valueToExpr (VBool b) = return $ EBoolLit b
 valueToExpr (VInt b) = return $ EIntLit b
 valueToExpr (VChar b) = return $ ECharLit b
+valueToExpr (VData b vs) = return $ EData b (values2Exprs vs)
+
+
+localMV :: Value -> ContextState Value -> ContextState Value
+localMV v op = do
+  originContext <- get
+  put $ insertIntoContext2 originContext v
+  result <- op
+  put originContext
+  return result
+
+patternEq :: Value -> Pattern -> ContextState Bool
+patternEq _ (PVar vName) = return True
+patternEq (VInt vv) (PIntLit pv) = return $ vv == pv
+patternEq (VBool vv) (PBoolLit pv) = return $ vv == pv
+patternEq (VChar vv) (PCharLit pv) = return $ vv == pv
+patternEq (VData vcons vs) (PData pcons ps) = do
+  if vcons == pcons
+    then do
+      vsEqual <- patternsEq vs ps
+      return vsEqual
+    else 
+      return False
+patternEq _ _  = return False
+
+patternsEq :: [Value] -> [Pattern] -> ContextState Bool
+patternsEq [] [] = return True
+patternsEq (v:vs) (p:ps)  = do
+  b <- patternEq v p
+  bs <- patternsEq vs ps
+  return (b && bs)
+
+evalPattern :: Value -> Pattern -> ContextState Value -> ContextState Value
+evalPattern v (PVar name) op  = do
+  originContext <- get
+  put $ insertIntoContext originContext name v
+  result <- op
+  put originContext
+  return result
+evalPattern (VData vcons vs) (PData pcons ps) op = evalPatterns vs ps op
+evalPattern v _ op = op
+
+evalPatterns :: [Value] -> [Pattern] -> ContextState Value -> ContextState Value
+evalPatterns (v:vs) (p:ps) op = evalPattern v p (evalPatterns vs ps op)
+evalPatterns [] [] op = op
+
+evalMatchPattern :: Value -> [(Pattern,Expr)] -> ContextState Value
+evalMatchPattern _ [] = lift Nothing
+evalMatchPattern v ((p,e):pes) = do
+  pm <- patternEq v p
+  if pm 
+    then evalPattern v p (eval e)
+    else evalMatchPattern v pes
+
+localVars :: [(String,Value)] -> ContextState Value -> ContextState Value
+localVars ((name,value):xs) op = do
+  originContext <- get
+  put $ insertIntoContext originContext name value
+  result <- (localVars xs op)
+  put originContext
+  return result
+localVars [] op = do
+  result <- op
+  return result
 
 eval :: Expr -> ContextState Value
 eval (EBoolLit b) = return $ VBool b
@@ -351,62 +432,99 @@ eval (EIf eif e1 e2) = do
       return ev2
     _ -> lift Nothing
 
-eval (ELet (s, es) e) = do
+eval (ELambda (vName,vt) e) = do
   originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nELet  context: " ++ (show originContext) ++ "\n   s = " ++ (show s) ++ "\n && es = " ++ (show es) ++ "\n && e = " ++ (show e)) $ return (VBool False)
-  -- -- end of for debug!
-  parsedES <- simplifyExpr es
-  put $ insertIntoContext originContext s parsedES
-  -- -- for debug!
-  -- k <- get
-  -- Trace.trace ("\nELet  nowcontext: " ++ (show k)) $ return (VBool False)
-  -- -- end of for debug!
-  eVal <- eval e
-  put originContext  -- 因为let只是临时绑定
-  return eVal
-eval (ELetRec f (x, tx) (e1, ty) e2) = do
-  originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nELetRec  context: " ++ (show originContext) ++ "\n   f = " ++ (show f) ++ "\n && x = " ++ (show x) ++ "\n && tx = " ++ (show tx) ++ "\n && e1 = " ++ (show e1) ++ "\n && ty = " ++ (show ty) ++ "\n && e2 = " ++ (show e2)) $ return (VBool False)
-  -- -- end of for debug!
-  parsedE1 <- simplifyExpr e1
-  put $ insertIntoContext originContext f (ELambda (x, tx) parsedE1)
-  eVal <- eval e2
-  put originContext  -- 因为let只是临时绑定
-  return eVal
-eval (EApply e e1) = do
-  originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nEApply  context: " ++ (show originContext) ++ "\n   e1 = " ++ (show e1) ++ "\n && e = " ++ (show e)) $ return (VBool False)
-  -- -- end of for debug!
-  func <- checkEVarELambda e
-  case func of
-    (ELambda (x, t) e2) -> do
-      evaledE1 <- eval e1
-      parsedE1 <- valueToExpr evaledE1
-      put $ insertIntoContext originContext x parsedE1
-      ans <- eval e2
-      put originContext  -- 因为let只是临时绑定
-      return ans
-    _ -> lift Nothing
+  case (mv originContext) of
+    Nothing -> return (VExpr (ELambda (vName,vt) e) [])
+    Just value -> do
+      v <- do
+        localCtx <- get
+        case (mv originContext) of
+          Just value -> 
+            put (Context (runContext localCtx) Nothing (adtsMap localCtx)) >>
+            return value
+          _ -> lift Nothing
+      localContext <- get
+      put $ insertIntoContext localContext vName v
+      result <- (eval e)
+      put localContext
+      case result of
+        VExpr expr acc -> return (VExpr expr ((vName,value):acc))
+        _ -> return result
 
-eval (EVar s) = do
+eval (ELet (vName,vexpr) expr) = do
+  vV <- eval vexpr
   originContext <- get
-  -- -- for debug!
-  -- Trace.trace ("\nEVar  context: " ++ (show originContext) ++ "\n   s = " ++ (show s)) $ return (VBool False)
-  -- -- end of for debug!
-  case (Map.fromList (runContext originContext)) Map.!? s of
-    (Just a) -> eval a
-    _ -> lift Nothing
+  put $ insertIntoContext originContext vName vV
+  result <- (eval expr)
+  put originContext
+  return result
+
+eval (ELetRec fName (v , vt) (fe , ft) e) = do
+  f <- eval (ELambda (v,vt) fe)
+  originContext <- get
+  put $ insertIntoContext originContext fName f
+  result <- (eval e)
+  put originContext
+  return result
+
+eval (EVar vName) = do
+  originContext <- get
+  case (Map.fromList (runContext originContext) Map.!? vName) of 
+    Just v -> return v
+    Nothing -> 
+      case (Map.fromList (adtsMap originContext) Map.!? vName) of
+        Nothing -> lift Nothing
+        Just e -> eval e
     
-eval _ = do
-  lift Nothing
+ 
+eval (EApply e1 e2) = do
+  VExpr expr locals <- eval e1
+  v <- eval e2
+  let localV = localMV v (eval expr) 
+  result <- localVars locals localV
+  case result of
+    VExpr expr newLocals -> return (VExpr expr (locals ++ newLocals))
+    _ -> return result
+    
+eval (ECase e pes) = do
+  v <- eval e
+  evalMatchPattern v pes
+
+eval (EData cons es) = do
+  vs <- evels es
+  return (VData cons vs)
+    
+-- eval _ = do
+--   lift Nothing
+
+evels :: [Expr] -> ContextState [Value]
+evels [] = return []
+evels (e:es) = do
+  ev <- eval e
+  esv <- evels es
+  return (ev:esv)
+
+getAdtParameter _ 0 = []
+getAdtParameter [] acc = []
+getAdtParameter (t:ts) acc= (EVar (show acc)) : (getAdtParameter ts (acc-1))
+
+getAdtBody name types = EData name (getAdtParameter types (length types))
+
+getAdtLambda name [] total = getAdtBody name total
+getAdtLambda name (t:ts) total = ELambda (show $ length(t:ts),t) (getAdtLambda name ts total)
+
+getAdtLambdas [] = []
+getAdtLambdas ((name,types) : cs) = (name, (getAdtLambda name types types)) : (getAdtLambdas cs)
+
+getAdt (ADT typeName cs) = getAdtLambdas cs
+
+getAdtsMap [] = []
+getAdtsMap (adt:adts) = (getAdt adt) ++ (getAdtsMap adts)
 
 evalProgram :: Program -> Maybe Value
 evalProgram (Program adts body) = evalStateT (eval body) $
-  Context [] -- 可以用某种方式定义上下文，用于记录变量绑定状态
-
+  (Context [] Nothing (getAdtsMap adts)) -- 可以用某种方式定义上下文，用于记录变量绑定状态
 
 evalValue :: Program -> Result
 evalValue p = case evalProgram p of
