@@ -168,9 +168,6 @@ eDataType e t = do
   et <- eval e
   if et == t then return et else lift Nothing
 
-getAdts (ADT name ax) = ax
-getAdtsMap = foldl (\acc x -> (getAdts x) ++ acc) []
-
 insertIntoContext originContext pn pt = (Context  (Map.toList $ Map.insert pn pt (Map.fromList $ runContext originContext)) (eDataTypeMap originContext) (adtsMap originContext) (adtsTypeMap originContext))
 
 eval :: Expr -> ContextState Type
@@ -274,15 +271,16 @@ eval (EData cons es) = do
 -- eval _ = do
 --   lift Nothing
 
+geteDataTypeMap = foldl (\acc (ADT name xs) -> (foldl (\acc x -> (x, TData name) : acc) [] (fst $ unzip xs)) ++ acc) []
+
+getAdtsMap = foldl (\acc (ADT name xs) -> xs ++ acc) []
+
 getConsFuncType tname [] = TData tname
 getConsFuncType tname (t:ts) = TArrow t (getConsFuncType tname ts)
 getAdtsType (ADT tname []) = []
 getAdtsType (ADT tname ((name,ts):cs)) = (name,(getConsFuncType tname ts)):(getAdtsType (ADT tname cs))
 getAdtsTypeMap [] = []
 getAdtsTypeMap (adt:adts) = (getAdtsType adt) ++ (getAdtsTypeMap adts)
-
-geteDataType (ADT n ax) = foldl (\acc x -> (x, TData n) : acc) [] (fst $ unzip ax)
-geteDataTypeMap = foldl (\acc x -> (geteDataType x) ++ acc) []
 
 evalType :: Program -> Maybe Type
 evalType (Program adts body) = evalStateT (eval body) $
