@@ -509,18 +509,14 @@ getAdtParameter _ 0 = []
 getAdtParameter [] acc = []
 getAdtParameter (t:ts) acc= (EVar (show acc)) : (getAdtParameter ts (acc-1))
 
-getAdtBody name types = EData name (getAdtParameter types (length types))
+getAdt name [] types = EData name (getAdtParameter types (length types))
+getAdt name (t:ts) types = ELambda (show $ length(t:ts),t) (getAdt name ts types)
 
-getAdtLambda name [] total = getAdtBody name total
-getAdtLambda name (t:ts) total = ELambda (show $ length(t:ts),t) (getAdtLambda name ts total)
-
-getAdtLambdas [] = []
-getAdtLambdas ((name,types) : cs) = (name, (getAdtLambda name types types)) : (getAdtLambdas cs)
-
-getAdt (ADT typeName cs) = getAdtLambdas cs
+getAdts [] = []
+getAdts ((name,types) : cs) = (name, (getAdt name types types)) : (getAdts cs)
 
 getAdtsMap [] = []
-getAdtsMap (adt:adts) = (getAdt adt) ++ (getAdtsMap adts)
+getAdtsMap ((ADT typeName cs) : adts) = (getAdts cs) ++ (getAdtsMap adts)
 
 evalProgram :: Program -> Maybe Value
 evalProgram (Program adts body) = evalStateT (eval body) $
