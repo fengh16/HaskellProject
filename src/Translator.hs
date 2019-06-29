@@ -32,21 +32,27 @@ eval (EAdd e1 e2) = do
     eval e2
 
 eval (ESub e1 e2) = do
+    putStr "("
     eval e1
     putStr " - "
     eval e2
+    putStr ")"
 eval (EMul e1 e2) = do
     eval e1
     putStr " * "
     eval e2
 eval (EDiv e1 e2) = do
+    putStr "Math.floor("
     eval e1
     putStr " / "
     eval e2
+    putStr ")"
 eval (EMod e1 e2) = do
+    putStr "("
     eval e1
     putStr " % "
     eval e2
+    putStr ")"
 
 eval (EEq e1 e2) = do
     eval e1
@@ -76,11 +82,13 @@ eval (EGt e1 e2) = do
     eval e2
 
 eval (EIf eif e1 e2) = do
+    putStr "("
     eval eif
     putStr "?"
     eval e1
     putStr ":"
     eval e2
+    putStr ")"
     
 
 eval (ELambda (pn, pt) e) = do

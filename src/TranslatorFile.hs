@@ -32,21 +32,27 @@ module TranslatorFile where
         eval e2 outh
     
     eval (ESub e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " - "
         eval e2 outh
+        hPutStr outh ")"
     eval (EMul e1 e2) outh= do
         eval e1 outh
         hPutStr outh " * "
         eval e2 outh
     eval (EDiv e1 e2) outh= do
+        hPutStr outh "Math.floor("
         eval e1 outh
         hPutStr outh " / "
         eval e2 outh
+        hPutStr outh ")"
     eval (EMod e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " % "
         eval e2 outh
+        hPutStr outh ")"
     
     eval (EEq e1 e2) outh= do
         eval e1 outh
@@ -76,11 +82,13 @@ module TranslatorFile where
         eval e2 outh
     
     eval (EIf eif e1 e2) outh= do
+        hPutStr outh "("
         eval eif outh
         hPutStr outh "?"
         eval e1 outh
         hPutStr outh ":"
         eval e2 outh
+        hPutStr outh ")"
         
     eval (ELambda (pn, pt) e) outh= do
         hPutStr outh "function("
