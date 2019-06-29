@@ -15,21 +15,29 @@ module TranslatorFile where
     eval (EVar b) outh= hPutStr outh $ id b
     
     eval (ENot e) outh= do
+        hPutStr outh "("
         hPutStr outh "!"
         eval e outh
+        hPutStr outh ")"
     eval (EAnd e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " && "
         eval e2 outh
+        hPutStr outh ")"
     
     eval (EOr e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " || "
         eval e2 outh
+        hPutStr outh ")"
     eval (EAdd e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " + "
         eval e2 outh
+        hPutStr outh ")"
     
     eval (ESub e1 e2) outh= do
         hPutStr outh "("
@@ -38,9 +46,11 @@ module TranslatorFile where
         eval e2 outh
         hPutStr outh ")"
     eval (EMul e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " * "
         eval e2 outh
+        hPutStr outh ")"
     eval (EDiv e1 e2) outh= do
         hPutStr outh "Math.floor("
         eval e1 outh
@@ -55,31 +65,43 @@ module TranslatorFile where
         hPutStr outh ")"
     
     eval (EEq e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " == "
         eval e2 outh
+        hPutStr outh ")"
     
     eval (ENeq e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " != "
         eval e2 outh
+        hPutStr outh ")"
     
     eval (ELe e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " <= "
         eval e2 outh
+        hPutStr outh ")"
     eval (ELt e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " < "
         eval e2 outh
+        hPutStr outh ")"
     eval (EGe e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " >= "
         eval e2 outh
+        hPutStr outh ")"
     eval (EGt e1 e2) outh= do
+        hPutStr outh "("
         eval e1 outh
         hPutStr outh " > "
         eval e2 outh
+        hPutStr outh ")"
     
     eval (EIf eif e1 e2) outh= do
         hPutStr outh "("

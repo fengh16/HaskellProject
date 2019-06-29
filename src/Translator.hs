@@ -15,21 +15,29 @@ eval (ECharLit b) = putStr (show b)
 eval (EVar b) = putStr $ id b
 
 eval (ENot e) = do
+    putStr "("
     putStr "!"
     eval e
+    putStr ")"
 eval (EAnd e1 e2) = do
+    putStr "("
     eval e1
     putStr " && "
     eval e2
+    putStr ")"
 
 eval (EOr e1 e2) = do
+    putStr "("
     eval e1
     putStr " || "
     eval e2
+    putStr ")"
 eval (EAdd e1 e2) = do
+    putStr "("
     eval e1
     putStr " + "
     eval e2
+    putStr ")"
 
 eval (ESub e1 e2) = do
     putStr "("
@@ -38,9 +46,11 @@ eval (ESub e1 e2) = do
     eval e2
     putStr ")"
 eval (EMul e1 e2) = do
+    putStr "("
     eval e1
     putStr " * "
     eval e2
+    putStr ")"
 eval (EDiv e1 e2) = do
     putStr "Math.floor("
     eval e1
@@ -55,31 +65,43 @@ eval (EMod e1 e2) = do
     putStr ")"
 
 eval (EEq e1 e2) = do
+    putStr "("
     eval e1
     putStr " == "
     eval e2
+    putStr ")"
 
 eval (ENeq e1 e2) = do
+    putStr "("
     eval e1
     putStr " != "
     eval e2
+    putStr ")"
 
 eval (ELe e1 e2) = do
+    putStr "("
     eval e1
     putStr " <= "
     eval e2
+    putStr ")"
 eval (ELt e1 e2) = do
+    putStr "("
     eval e1
     putStr " < "
     eval e2
+    putStr ")"
 eval (EGe e1 e2) = do
+    putStr "("
     eval e1
     putStr " >= "
     eval e2
+    putStr ")"
 eval (EGt e1 e2) = do
+    putStr "("
     eval e1
     putStr " > "
     eval e2
+    putStr ")"
 
 eval (EIf eif e1 e2) = do
     putStr "("
@@ -92,9 +114,11 @@ eval (EIf eif e1 e2) = do
     
 
 eval (ELambda (pn, pt) e) = do
+    putStr "("
     putStr $ id pn
     putStr "=>("
     eval e
+    putStr ")"
     putStr ")"
 
 eval (ELet (s, es) e) = do
